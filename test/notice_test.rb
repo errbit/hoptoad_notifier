@@ -55,6 +55,11 @@ class NoticeTest < Test::Unit::TestCase
     assert_equal url, notice.url
   end
 
+  should "set the host name" do
+    notice = build_notice
+    assert_equal hostname, notice.hostname
+  end
+
   should "accept a backtrace from an exception or hash" do
     array = ["user.rb:34:in `crazy'"]
     exception = build_exception
@@ -241,6 +246,7 @@ class NoticeTest < Test::Unit::TestCase
 
       assert_valid_node(@document, "//server-environment/project-root",     "RAILS_ROOT")
       assert_valid_node(@document, "//server-environment/environment-name", "RAILS_ENV")
+      assert_valid_node(@document, "//server-environment/hostname", hostname)
     end
   end
 
@@ -310,29 +316,20 @@ class NoticeTest < Test::Unit::TestCase
     end
   end
 
-  should "ignore RecordNotFound error by default" do
-    notice = build_notice(:error_class => 'ActiveRecord::RecordNotFound')
-    assert notice.ignore?
-  end
+  ignored_error_classes = %w(
+    ActiveRecord::RecordNotFound
+    AbstractController::ActionNotFound
+    ActionController::RoutingError
+    ActionController::InvalidAuthenticityToken
+    CGI::Session::CookieStore::TamperedWithCookie
+    ActionController::UnknownAction
+  )
 
-  should "ignore RoutingError error by default" do
-    notice = build_notice(:error_class => 'ActionController::RoutingError')
-    assert notice.ignore?
-  end
-
-  should "ignore InvalidAuthenticityToken error by default" do
-    notice = build_notice(:error_class => 'ActionController::InvalidAuthenticityToken')
-    assert notice.ignore?
-  end
-
-  should "ignore TamperedWithCookie error by default" do
-    notice = build_notice(:error_class => 'CGI::Session::CookieStore::TamperedWithCookie')
-    assert notice.ignore?
-  end
-
-  should "ignore UnknownAction error by default" do
-    notice = build_notice(:error_class => 'ActionController::UnknownAction')
-    assert notice.ignore?
+  ignored_error_classes.each do |ignored_error_class|
+    should "ignore #{ignored_error_class} error by default" do
+      notice = build_notice(:error_class => ignored_error_class)
+      assert notice.ignore?
+    end
   end
 
   should "act like a hash" do
@@ -430,7 +427,7 @@ class NoticeTest < Test::Unit::TestCase
   end
 
   def assert_valid_notice_document(document)
-    xsd_path = File.join(File.dirname(__FILE__), "hoptoad_2_0.xsd")
+    xsd_path = File.join(File.dirname(__FILE__), "hoptoad_2_2.xsd")
     schema = Nokogiri::XML::Schema.new(IO.read(xsd_path))
     errors = schema.validate(document)
     assert errors.empty?, errors.collect{|e| e.message }.join
@@ -454,4 +451,9 @@ class NoticeTest < Test::Unit::TestCase
     ["app/models/user.rb:13:in `magic'",
       "app/controllers/users_controller.rb:8:in `index'"]
   end
+
+  def hostname
+    `hostname`.chomp
+  end
+
 end

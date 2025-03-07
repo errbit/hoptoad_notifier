@@ -123,10 +123,6 @@ gemspec = Gem::Specification.new do |s|
   s.require_path = 'lib'
   s.test_files   = Dir[*['test/**/*_test.rb']]
 
-  s.has_rdoc         = true
-  s.extra_rdoc_files = ["README.rdoc"]
-  s.rdoc_options = ['--line-numbers', "--main", "README.rdoc"]
-
   s.add_runtime_dependency("builder")
   s.add_runtime_dependency("activesupport")
   s.add_development_dependency("activerecord")
@@ -159,9 +155,10 @@ end
 
 LOCAL_GEM_ROOT = File.join(GEM_ROOT, 'tmp', 'local_gems').freeze
 RAILS_VERSIONS = IO.read('SUPPORTED_RAILS_VERSIONS').strip.split("\n")
-LOCAL_GEMS = [['sham_rack', nil], ['capistrano', nil], ['sqlite3-ruby', nil], ['sinatra', nil]] +
+LOCAL_GEMS = [['sham_rack', nil], ['capistrano', nil], ['sqlite3-ruby', nil], ['sinatra', nil], ['rake', '0.8.7']] +
   RAILS_VERSIONS.collect { |version| ['rails', version] }
 
+desc "Vendor test gems: Run this once to prepare your test environment"
 task :vendor_test_gems do
   old_gem_path = ENV['GEM_PATH']
   old_gem_home = ENV['GEM_HOME']
@@ -192,22 +189,32 @@ end
 
 task :cucumber => [:gemspec, :vendor_test_gems]
 
+def run_rails_cucumbr_task(version, additional_cucumber_args)
+  puts "Testing Rails #{version}"
+  if version.empty?
+    raise "No Rails version specified - make sure ENV['RAILS_VERSION'] is set, e.g. with `rake cucumber:rails:all`"
+  end
+  ENV['RAILS_VERSION'] = version
+  system("cucumber --format #{ENV['CUCUMBER_FORMAT'] || 'progress'} #{additional_cucumber_args} features/rails.feature features/rails_with_js_notifier.feature")
+end
+
 def define_rails_cucumber_tasks(additional_cucumber_args = '')
   namespace :rails do
     RAILS_VERSIONS.each do |version|
       desc "Test integration of the gem with Rails #{version}"
       task version => [:gemspec, :vendor_test_gems] do
-        puts "Testing Rails #{version}"
-        if version.empty?
-          raise "No Rails version specified - make sure ENV['RAILS_VERSION'] is set, e.g. with `rake cucumber:rails:all`"
-        end
-        ENV['RAILS_VERSION'] = version
-        system("cucumber --format #{ENV['CUCUMBER_FORMAT'] || 'progress'} #{additional_cucumber_args} features/rails.feature features/rails_with_js_notifier.feature")
+        exit 1 unless run_rails_cucumbr_task(version, additional_cucumber_args)
       end
     end
 
     desc "Test integration of the gem with all Rails versions"
-    task :all => RAILS_VERSIONS
+    task :all do
+      results = RAILS_VERSIONS.map do |version|
+        run_rails_cucumbr_task(version, additional_cucumber_args)
+      end
+
+      exit 1 unless results.all?
+    end
   end
 end
 

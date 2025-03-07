@@ -24,6 +24,7 @@ module HoptoadTasks
       return false
     end
 
+    dry_run = opts.delete(:dry_run)
     params = {'api_key' => opts.delete(:api_key) ||
                              HoptoadNotifier.configuration.api_key}
     opts.each {|k,v| params["deploy[#{k}]"] = v }
@@ -35,10 +36,15 @@ module HoptoadTasks
                             HoptoadNotifier.configuration.proxy_user,
                             HoptoadNotifier.configuration.proxy_pass)
 
-    response = proxy.post_form(url, params)
+    if dry_run
+      puts url, params.inspect
+      return true
+    else
+      response = proxy.post_form(url, params)
 
-    puts response.body
-    return Net::HTTPSuccess === response
+      puts response.body
+      return Net::HTTPSuccess === response
+    end
   end
 end
 

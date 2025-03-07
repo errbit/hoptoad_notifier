@@ -1,4 +1,5 @@
 require 'builder'
+require 'socket'
 
 module HoptoadNotifier
   class Notice
@@ -65,6 +66,9 @@ module HoptoadNotifier
     # A URL for more information about the notifier library sending this notice
     attr_reader :notifier_url
 
+    # The host name where this error occurred (if any)
+    attr_reader :hostname
+
     def initialize(args)
       self.args         = args
       self.exception    = args[:exception]
@@ -94,6 +98,8 @@ module HoptoadNotifier
       self.error_message    = exception_attribute(:error_message, 'Notification') do |exception|
         "#{exception.class.name}: #{exception.message}"
       end
+
+      self.hostname        = local_hostname
 
       also_use_rack_params_filters
       find_session_data
@@ -153,6 +159,7 @@ module HoptoadNotifier
         notice.tag!("server-environment") do |env|
           env.tag!("project-root", project_root)
           env.tag!("environment-name", environment_name)
+          env.tag!("hostname", hostname)
         end
       end
       xml.to_s
@@ -185,7 +192,7 @@ module HoptoadNotifier
       :backtrace_filters, :parameters, :params_filters,
       :environment_filters, :session_data, :project_root, :url, :ignore,
       :ignore_by_filters, :notifier_name, :notifier_url, :notifier_version,
-      :component, :action, :cgi_data, :environment_name
+      :component, :action, :cgi_data, :environment_name, :hostname
 
     # Arguments given in the initializer
     attr_accessor :args
@@ -226,14 +233,16 @@ module HoptoadNotifier
     # Removes non-serializable data. Allowed data types are strings, arrays,
     # and hashes. All other types are converted to strings.
     # TODO: move this onto Hash
-    def clean_unserializable_data(data)
+    def clean_unserializable_data(data, stack = [])
+      return "[possible infinite recursion halted]" if stack.any?{|item| item == data.object_id }
+
       if data.respond_to?(:to_hash)
         data.to_hash.inject({}) do |result, (key, value)|
-          result.merge(key => clean_unserializable_data(value))
+          result.merge(key => clean_unserializable_data(value, stack + [data.object_id]))
         end
       elsif data.respond_to?(:to_ary)
         data.collect do |value|
-          clean_unserializable_data(value)
+          clean_unserializable_data(value, stack + [data.object_id])
         end
       else
         data.to_s
@@ -329,6 +338,10 @@ module HoptoadNotifier
         @params_filters ||= []
         @params_filters += rack_request.env["action_dispatch.parameter_filter"] || []
       end
+    end
+
+    def local_hostname
+      Socket.gethostname
     end
 
   end

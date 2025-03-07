@@ -49,7 +49,18 @@ class HoptoadTasksTest < Test::Unit::TestCase
                  HoptoadNotifier.configuration.proxy_pass).
             returns(@http_proxy)
 
-          @options    = { :rails_env => "staging" }
+          @options    = { :rails_env => "staging", :dry_run => false }
+        end
+        
+        context "performing a dry run" do
+          setup { @output = HoptoadTasks.deploy(@options.merge(:dry_run => true)) }
+
+          should "return true without performing any actual request" do
+            assert_equal true, @output
+            assert_received(@http_proxy, :post_form) do|expects|
+              expects.never
+            end
+          end
         end
 
         context "on deploy(options)" do

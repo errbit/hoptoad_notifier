@@ -1,3 +1,3 @@
 module HoptoadNotifier
-  VERSION = "2.3.11".freeze
+  VERSION = "2.4.11".freeze
 end

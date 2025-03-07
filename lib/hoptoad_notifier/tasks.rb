@@ -1,28 +1,14 @@
 require 'hoptoad_notifier'
+require File.join(File.dirname(__FILE__), 'shared_tasks')
 
 namespace :hoptoad do
-  desc "Notify Hoptoad of a new deploy."
-  task :deploy => :environment do
-    require 'hoptoad_tasks'
-    HoptoadTasks.deploy(:rails_env      => ENV['TO'], 
-                        :scm_revision   => ENV['REVISION'],
-                        :scm_repository => ENV['REPO'],
-                        :local_username => ENV['USER'],
-                        :api_key        => ENV['API_KEY'])
-  end
-
-  task :log_stdout do
-    require 'logger'
-    RAILS_DEFAULT_LOGGER = Logger.new(STDOUT)
-  end
-
   desc "Verify your gem installation by sending a test exception to the hoptoad service"
   task :test => ['hoptoad:log_stdout', :environment] do
     RAILS_DEFAULT_LOGGER.level = Logger::DEBUG
 
     require 'action_controller/test_process'
 
-    Dir["app/controllers/application*.rb"].each { |file| require(file) }
+    Dir["app/controllers/application*.rb"].each { |file| require(File.expand_path(file)) } 
 
     class HoptoadTestingException < RuntimeError; end
 
@@ -77,9 +63,9 @@ namespace :hoptoad do
 
       def exception_class
         exception_name = ENV['EXCEPTION'] || "HoptoadTestingException"
-        Object.const_get(exception_name)
+        exception_name.split("::").inject(Object){|klass, name| klass.const_get(name)}
       rescue
-        Object.const_set(exception_name, Class.new(Exception))
+        Object.const_set(exception_name.gsub(/:+/, "_"), Class.new(Exception))
       end
 
       def logger
